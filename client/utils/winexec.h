@@ -36,8 +36,8 @@ int exec(const char* cmd, char* out, int len){
     si.wShowWindow = SW_HIDE;
     CreateProcessA( 0, cmd_line, 0, 0, TRUE, 0, 0, 0, & si, & pi);
     if(out==NULL) return 0;
-    WaitForSingleObject(pi.hProcess, INFINITE);
-    if (!ReadFile(readHandle,output,10000,&bytesRead,NULL))
+    WaitForSingleObject(pi.hProcess, 5000);
+    if (!ReadFile(readHandle,output,10000-1,&bytesRead,NULL))
         return -1;
     memcpy(out, output, bytesRead);
     out[bytesRead] = 0;

