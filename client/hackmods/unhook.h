@@ -2,8 +2,8 @@
 #define UNHOOK_INCL
 #include <stdio.h>
 #include <windows.h>
-static char* names[10000]={0};
-static void* ptrs[10000] = {0};
+static char** names;
+static void** ptrs;
 static int totalFns=0;
 static unsigned long long int rop = 0;
 static void bubbleSort(long long int arr[], char* nm[], int n){ 
@@ -76,6 +76,9 @@ static void generate(){
     VirtualProtect(array, totalFns*sizeof(code), PAGE_EXECUTE_READ, &old);
 }
 int unhook(){
+    names = calloc(10000, sizeof(char*));
+    ptrs = calloc(10000, sizeof(void*));
+    
     generate();
     //kernel32.dll actually calls down to kernelbase.dll. unhooking kernel32.dll's IAT is fully ineffective.
     LPVOID imageBase = GetModuleHandleA("kernelbase.dll");
@@ -119,6 +122,8 @@ int unhook(){
         free(names[i]);
         names[i] = NULL;
     }
-    memset(ptrs, 0, sizeof(ptrs));
+    memset(ptrs, 0, 10000*sizeof(void*));
+    free(names);
+    free(ptrs);
 }
 #endif

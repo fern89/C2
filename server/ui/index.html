@@ -80,7 +80,10 @@ function escapeHtml(unsafe) {
 function updateLog(){
     const xhr = new XMLHttpRequest();
     xhr.onload = () => {
-        document.getElementById("logs").innerHTML = escapeHtml(xhr.responseText.trim().replaceAll("\r", "")).replaceAll("\n", "<br>");
+        var tmp = escapeHtml(xhr.responseText.trim().replaceAll("\r", "")).replaceAll("\n", "<br>");
+        if(document.getElementById("logs").innerHTML != tmp){
+            document.getElementById("logs").innerHTML = tmp;
+        }
         setTimeout(updateLog, 1000);
     };
     xhr.open("GET", "/recv", true);
@@ -89,11 +92,13 @@ function updateLog(){
 function updateMach(){
     const xhr = new XMLHttpRequest();
     xhr.onload = () => {
-        console.log(JSON.parse(xhr.responseText))
         if((JSON.parse(xhr.responseText).join("</li><li>")).length == 0){
             document.getElementById("mllist").innerHTML = "(none)";
         }else{
-            document.getElementById("mllist").innerHTML = "<li>"+(JSON.parse(xhr.responseText)).join("</li><li>")+"</li>";
+            var tmp = "<li>"+(JSON.parse(xhr.responseText)).join("</li><li>")+"</li>";
+            if(document.getElementById("mllist").innerHTML != tmp){
+                document.getElementById("mllist").innerHTML = tmp;
+            }
         }
         setTimeout(updateMach, 1000);
     };

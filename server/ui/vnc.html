@@ -1,0 +1,58 @@
+<meta http-equiv="Cache-Control" content="no-store" />
+<a href="/closevnc?id={ID}">Close this connection</a>
+<br>
+<p id="mspf"></p>
+<input type="range" min="10" max="10000" value="1000" class="slider" id="spf">
+<canvas id="canvas" width=1920 height=1080></canvas>
+<script>
+const request = new XMLHttpRequest();
+var x=0;
+var y=0;
+document.getElementById("spf").oninput = function() {
+    document.getElementById("mspf").innerHTML = "Milliseconds per frame (currently "+this.value+")";
+} 
+document.getElementById("mspf").innerHTML = "Milliseconds per frame (currently "+document.getElementById("spf").value+")";
+var imageObj = new Image();
+imageObj.onload = function() {
+    drawOnCanvas();
+    setTimeout(timedRefresh, document.getElementById("spf").value);
+}
+imageObj.onerror = function() {
+    setTimeout(timedRefresh, document.getElementById("spf").value);
+}
+imageObj.src = "/firstimage.png?id={ID}&dummy=" + Math.random();
+function _arrayBufferToBase64( buffer ) {
+    var binary = '';
+    var bytes = new Uint8Array(buffer);
+    var len = bytes.byteLength;
+    for (var i = 0; i < len; i++) {
+        binary += String.fromCharCode(bytes[i]);
+    }
+    return btoa(binary);
+}
+
+function timedRefresh() {
+    const req = new XMLHttpRequest();
+    req.open("GET", "/image.png?id={ID}&dummy=" + Math.random(), true)
+    req.responseType = "arraybuffer";
+    req.onload = (event) => {
+        x = parseInt(req.getResponseHeader("X"));
+        y = parseInt(req.getResponseHeader("Y"));
+        var b64encoded = _arrayBufferToBase64(req.response);
+        imageObj.src = 'data:image/png;base64,' + b64encoded;
+    };
+    req.send(null);
+}
+
+function drawOnCanvas() {
+    var canvas = document.getElementById("canvas");
+    if(imageObj.naturalWidth>canvas.width){
+        canvas.width = imageObj.naturalWidth;
+        canvas.height = imageObj.naturalHeight;
+    }
+    var ctx = canvas.getContext("2d");
+    ctx.clearRect(x, y, imageObj.naturalWidth, imageObj.naturalHeight);
+    ctx.drawImage(imageObj, x, y, imageObj.naturalWidth, imageObj.naturalHeight);
+}
+
+</script>

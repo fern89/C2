@@ -1,3 +1,8 @@
+#pragma comment(linker, "/FILEALIGN:16")
+#pragma comment(linker, "/ALIGN:16")// Merge sections
+#pragma comment(linker, "/MERGE:.rdata=.data")
+#pragma comment(linker, "/MERGE:.text=.data")
+#pragma comment(linker, "/MERGE:.reloc=.data")
 #include <stdio.h>
 #include <windows.h>
 #include <stdlib.h>

