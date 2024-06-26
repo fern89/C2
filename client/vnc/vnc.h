@@ -2,17 +2,15 @@
 #define VNC_INCL
 #include <stdio.h>
 #include <windows.h>
+#include <winuser.h>
 #include <stdlib.h>
 #include <string.h>
-#include "jpeg.h"
+#include "../utils/jpeg.h"
 #include "socks.h"
 static HDESK dsk;
 static int sendframe = 0;
 static int fullf = 0;
-typedef struct network{
-    char* ip;
-    int port;
-} NETWORK;
+
 static void inputthd(){
     while(1){
         char* data = vnc_sock_recv();
@@ -27,17 +25,37 @@ static void inputthd(){
 }
 void vncspawn(NETWORK* net){
     dsk = GetThreadDesktop(GetCurrentThreadId());
-    
     while(vnc_sock_init(net->ip, net->port) == -1) Sleep(1000);
     HANDLE thread = CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)inputthd, NULL, 0, NULL);
     HWND hDesk = GetDesktopWindow();
     RECT rect;
-    GetWindowRect(hDesk, &rect);
+    GetClientRect(hDesk, &rect);
+    
+    //scaling detect implementation
+    HWND curw = GetWindow(GetTopWindow(NULL), GW_HWNDLAST);
+    int maxrt = 0;
+    int maxbt = 0;
+    while(curw != NULL){
+        RECT rect2;
+        GetClientRect(curw, &rect2);
+        if(rect2.right>maxrt)
+            maxrt = rect2.right;
+        if(rect2.bottom>maxbt)
+            maxbt = rect2.bottom;
+        curw = GetWindow(curw, GW_HWNDPREV);
+    }
+    double factor;
+    double dx = ((double)maxrt)/((double)rect.right);
+    double dy = ((double)maxbt)/((double)rect.bottom);
+    if(dx>dy) factor = dx;
+    else factor = dy;
+    rect.right *= factor;
+    rect.bottom *= factor;
+    
+    //begin vnc
     HDC hdc = GetDC(NULL);
     unsigned char* pastbm = calloc(10000000, 1);
     unsigned char* bitmap;
-    int scrw = GetSystemMetrics(SM_CXSCREEN);
-	int scrh = GetSystemMetrics(SM_CYSCREEN);
     //main loop
     while(1){
         while(!sendframe) Sleep(100);
@@ -45,7 +63,7 @@ void vncspawn(NETWORK* net){
         HDC memdc = CreateCompatibleDC(hdc);
         HBITMAP hbitmap = CreateCompatibleBitmap(hdc, rect.right, rect.bottom);
         SelectObject(memdc, hbitmap);
-        BitBlt(memdc, 0, 0, scrw, scrh, hdc, 0, 0, SRCCOPY);
+        BitBlt(memdc, 0, 0, rect.right, rect.bottom, hdc, 0, 0, SRCCOPY);
         
         bitmap = calloc(10000000, 1);
         DWORD cb = GetBitmapBits(hbitmap, 10000000, bitmap);

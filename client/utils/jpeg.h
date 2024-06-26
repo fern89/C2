@@ -5,6 +5,10 @@
 #include <windows.h>
 #include <stdlib.h>
 #include <string.h>
+typedef struct network{
+    char* ip;
+    int port;
+} NETWORK;
 typedef int WINAPI(*d_GdipCreateBitmapFromHBITMAP)(HBITMAP hbm, HPALETTE hpal, void** bitmap);
 typedef int WINAPI(*d_GdiplusStartup)(ULONG_PTR* upt, void* a, unsigned int b);
 typedef int WINAPI(*d_GdipSaveImageToStream)(void* image, IStream* stream, CLSID* clsidEncoder, unsigned int encoderParams);
