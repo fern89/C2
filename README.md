@@ -15,6 +15,9 @@ Screenshare:
 - Modular C2
 - Traffic encryption
 - Screenshare support
+- SOCK5 proxy
+- Process migration
+- Revive on crash
 
 ## Compilation
 Designed to compile with the Tiny C Compiler. Compile agent with `tcc client/main.c -lws2_32 -lwininet -m64 -luser32`, sample BOF with `tcc bof/dlldemo.c -shared -o dlldemo.dll -m64`, run server with `python3 server/server.py`

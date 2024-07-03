@@ -6,8 +6,7 @@ stacks = {}
 outs = {}
 living = {}
 allout = ""
-def call(x):
-    return [pack(x)]
+
 def pack(x):
     return (x).to_bytes(4, byteorder='little')
 def wrap(data):
@@ -15,14 +14,7 @@ def wrap(data):
 def string(data):
     return pack(len(data)+0x80000000)+data.encode("charmap")
 def construct(stack):
-    instructs = b""
-    data = b""
-    for x in stack:
-        if "list" in str(type(x)):
-            instructs += x[0]
-        else:
-            data += x
-    return wrap(instructs) + wrap(data)
+    return wrap(stack)
 def toCmdTable(opcodes):
     data = {}
     i = 0
@@ -58,38 +50,35 @@ def scriptparse(script, data, subs):
             continue
         if x[0] == "#":
             continue
-        sh = shlex.split(x)
+        sh = shlex.split(x) #splt(x)
         if not sh[0].upper() in data:
             errors+="unrecognized command! line="+str(line)+"\n"
             continue
-        if not data[sh[0].upper()][2] == "?":
-            if not((len(sh)-1 == int(data[sh[0].upper()][2])) or ((len(sh)-3 == int(data[sh[0].upper()][2])) and ("->" in sh))):
-                errors+="invalid arg num! line="+str(line)+"\n"
-                continue
-        stack.append(call(data[sh[0].upper()][0]))
-        
+        loci = len(stack)
+        stack.append(pack(data[sh[0].upper()][0]))
+        print(sh)
         for i in range(1, len(sh)):
             if sh[i] == "->":
-                stack.append(call(data[sh[i+1].upper()][0]))
+                stack.append(pack(data[sh[i+1].upper()][0]))
                 break
-            elif sh[i] == "TRUE":
-                stack.append(pack(1))
-            elif sh[i] == "FALSE":
-                stack.append(pack(0))
+            elif sh[i].upper() == "TRUE":
+                stack.insert(loci, pack(data["PUSHINT"][0])+pack(1))
+            elif sh[i].upper() == "FALSE":
+                stack.insert(loci, pack(data["PUSHINT"][0])+pack(0))
             elif sh[i].upper() in subs:
-                stack.append(pack(subs[sh[i].upper()]))
+                stack.insert(loci, pack(data["PUSHINT"][0])+pack(subs[sh[i].upper()]))
             elif re.match(r"hex\([0-9a-fA-F]+\)", sh[i]):
-                stack.append(string(bytes.fromhex(sh[i].split("(")[1][:-1]).decode("charmap")))
+                stack.insert(loci, pack(data["PUSHSTR"][0])+string(bytes.fromhex(sh[i].split("(")[1][:-1]).decode("charmap")))
             elif re.match(r"file\(.+\)", sh[i]):
                 f = open(sh[i].split("(")[1][:-1], "rb")
                 r = f.read()
                 f.close()
-                stack.append(string(r.decode("charmap")))
+                stack.insert(loci, pack(data["PUSHSTR"][0])+string(r.decode("charmap")))
             elif sh[i].isnumeric():
-                stack.append(pack(int(sh[i])))
+                stack.insert(loci, pack(data["PUSHINT"][0])+pack(int(sh[i])))
             else:
-                stack.append(string(sh[i]))
+                stack.insert(loci, pack(data["PUSHSTR"][0])+string(sh[i]))
         if data[sh[0].upper()][1]:
             if not "->" in sh:
-                stack.append(call(data["POPSTR"][0]))
-    return [stack, errors]
+                stack.append(pack(data["PRINT"][0]))
+    return [b''.join(stack), errors]

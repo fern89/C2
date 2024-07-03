@@ -54,7 +54,7 @@ iframe {
         Target machine: <input type="text" name="target">
         <input type="submit" value="Submit">
     </form>
-    <textarea rows="10" cols="50" name="data" form="cmdform" placeholder="Enter script here" spellcheck="false"></textarea>
+    <textarea rows="10" cols="50" name="data" form="cmdform" placeholder="Enter script here" spellcheck="false" id="txtarea"></textarea>
     <br><br>
     <iframe name="dummyframe" id="dummyframe"></iframe>
 </div>
@@ -67,8 +67,15 @@ iframe {
     <ul id="mllist"></ul>
 </div>
 </div>
+
 </body>
 <script>
+document.getElementById("txtarea").addEventListener('keydown', function(e) {
+	if(e.keyCode == 13 && e.ctrlKey) {
+		this.form.submit();
+	}
+});
+
 function escapeHtml(unsafe) {
     return unsafe
          .replace(/&/g, "&amp;")
