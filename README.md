@@ -8,6 +8,10 @@ Main panel:
 Screenshare:
 ![image](https://github.com/fern89/C2/assets/139056562/7ed0d20d-8136-4c30-b4e0-8022051995cf)
 
+HVNC example:
+![image](https://github.com/fern89/C2/assets/139056562/d767750d-70af-49a7-8980-4eb1f15ee695)
+
+
 ## Features
 - Scriptable
 - Beacon object files
@@ -15,12 +19,13 @@ Screenshare:
 - Modular C2
 - Traffic encryption
 - Screenshare support
+- HVNC
 - SOCK5 proxy
 - Process migration
 - Revive on crash
 
 ## Compilation
-Designed to compile with the Tiny C Compiler. Compile agent with `tcc client/main.c -lws2_32 -lwininet -m64 -luser32`, sample BOF with `tcc bof/dlldemo.c -shared -o dlldemo.dll -m64`, run server with `python3 server/server.py`
+Designed to compile with the mingw GCC Compiler. Compile agent with `x86_64-w64-mingw32-gcc client/main.c -s -Os -lws2_32 -lwininet -m64 -luser32  -lgdi32 -lole32 -lshlwapi -ladvapi32 -o main.exe`, sample BOF with `x86_64-w64-mingw32-gcc bof/dlldemo.c -shared -o dlldemo.dll -m64`, run server with `python3 server/server.py`
 
 ## Scripting
 Sample script:
