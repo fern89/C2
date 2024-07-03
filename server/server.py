@@ -56,6 +56,8 @@ opcodes = """
     MIGRATE, //1//migrate [pid]
     PS, //0//list processes
     CURRENTPID, //0
+    CHECKADMIN, //0
+    PRIVESC, //0
 """
 c2s = """
     SOCKS,

