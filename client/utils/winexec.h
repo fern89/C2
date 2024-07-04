@@ -22,7 +22,10 @@ int exec(const char* cmd, char* out, int len){
     SetHandleInformation(readHandle, HANDLE_FLAG_INHERIT, 0);
     char output[10000] = {0}; 
     char cmd_line[500]="cmd /c \"";
-    strncat(cmd_line, cmd, len);
+    if(len == 0)
+        strcat(cmd_line, cmd);
+    else
+        strncat(cmd_line, cmd, len);
     strcat(cmd_line,"\"");
     PROCESS_INFORMATION pi;
     STARTUPINFOA si;
