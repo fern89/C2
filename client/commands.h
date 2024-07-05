@@ -160,6 +160,18 @@ int parse(int mnem, unsigned char** sp, C2* conn){
         persist_svc();
     }else if(mnem == FOLDER_PERSIST){
         persist_folder();
+    }else if(mnem == DL_FILE){
+        String url = popstr(sp);
+        String path = popstr(sp);
+        URLDownloadToFile(NULL, url.data, path.data, 0, NULL);
+        fs(url);
+        fs(path);
+    }else if(mnem == UL_FILE){
+        String url = popstr(sp);
+        String path = popstr(sp);
+        upload(path.data, url.data);
+        fs(url);
+        fs(path);
     }else{
         return 1;
     }

